@@ -1,6 +1,6 @@
 name: "PSEG Long Island Automation"
-url: "https://github.com/daswass/ha-psegli"
-maintainer: "Eric Wasserman"
+url: "https://github.com/YaannnTech/HA-MyMeter"
+maintainer: "YaannnTech (fork of daswass/ha-psegli by Eric Wasserman)"
 description: "Automated PSEG Long Island login and energy data retrieval"
 version: "2.4.5"
 homeassistant: "2024.8.0"

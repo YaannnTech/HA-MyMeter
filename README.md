@@ -1,5 +1,11 @@
 # PSEG Long Island Home Assistant Integration
 
+> **About this fork:** HA-MyMeter is a fork of [daswass/ha-psegli](https://github.com/daswass/ha-psegli) that adds support for other utilities on the MyMeter usage portal. It currently supports **PSEG Long Island** and **PSE&G New Jersey**; more MyMeter sites are the goal. Changes are offered back upstream ([#11](https://github.com/daswass/ha-psegli/issues/11)).
+>
+> To use this fork, add `https://github.com/YaannnTech/HA-MyMeter` wherever the instructions below say `https://github.com/daswass/ha-psegli`.
+>
+> Not affiliated with or endorsed by PSEG, VertexOne, or Accelerated Innovations (MyMeter).
+
 A Home Assistant integration for PSEG Long Island that provides automated energy usage data collection and statistics updates using a dedicated automation addon.
 
 ## 🚀 **Architecture Overview**
