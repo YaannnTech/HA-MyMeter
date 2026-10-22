@@ -5,7 +5,8 @@
       "description": "Enter your PSEG Long Island credentials. The integration will automatically log in and obtain authentication cookies.",
       "data": {
         "username": "Username/Email",
-        "password": "Password"
+        "password": "Password",
+        "site": "Utility"
       }
     }
   },

@@ -11,6 +11,14 @@ CONF_COOKIE = "cookie"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_MFA_METHOD = "mfa_method"  # "email" or "sms"
+CONF_SITE = "site"
+
+# MyMeter sites, keyed like the addon's SITES
+SITES = {
+    "pseg_li": {"name": "PSEG Long Island", "mymeter_host": "mysmartenergy.psegliny.com"},
+    "pseg_nj": {"name": "PSE&G New Jersey", "mymeter_host": "mysmartenergy.nj.pseg.com"},
+}
+DEFAULT_SITE = "pseg_li"
 
 # Addon configuration
 CONF_ADDON_URL = "addon_url"

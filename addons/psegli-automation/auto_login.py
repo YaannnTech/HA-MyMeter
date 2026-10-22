@@ -18,6 +18,22 @@ logging.basicConfig(
 )
 _LOGGER = logging.getLogger(__name__)
 
+# MyMeter sites this addon can log in to. Sites with an "okta_signin_url" log in through
+# MyMeter's own SAML entry point and the standard Okta Sign-In Widget; the others use
+# the PSEG Long Island browsing flow.
+SITES = {
+    "pseg_li": {
+        "name": "PSEG Long Island",
+        "mymeter_host": "mysmartenergy.psegliny.com",
+    },
+    "pseg_nj": {
+        "name": "PSE&G New Jersey",
+        "mymeter_host": "mysmartenergy.nj.pseg.com",
+        "okta_signin_url": "https://mysmartenergy.nj.pseg.com/Saml/okta-prod/SignIn",
+    },
+}
+DEFAULT_SITE = "pseg_li"
+
 class PSEGAutoLogin:
     """PSEG Long Island automated login using realistic browsing pattern."""
     
@@ -28,8 +44,13 @@ class PSEGAutoLogin:
         mfa_code: Optional[str] = None,
         mfa_method: str = "sms",  # "email" or "sms"
         headless: bool = True,
+        site: str = DEFAULT_SITE,
     ):
         """Initialize PSEG auto login."""
+        if site not in SITES:
+            raise ValueError(f"Unknown site '{site}', expected one of: {', '.join(SITES)}")
+        self.site = site
+        self.site_config = SITES[site]
         self.email = email
         self.password = password
         self.mfa_code = mfa_code
@@ -600,12 +621,215 @@ class PSEGAutoLogin:
         except Exception as e:
             _LOGGER.error(f"Error during realistic browsing: {e}")
             return False
-    
+
+    async def login_via_okta_widget(self):
+        """Log in through the site's MyMeter SAML entry point and the Okta Sign-In Widget."""
+        try:
+            self.page.set_default_timeout(30000)
+            signin_url = self.site_config["okta_signin_url"]
+            _LOGGER.info("🔑 Opening %s sign-in: %s", self.site_config["name"], signin_url)
+            await self.page.goto(signin_url, wait_until='domcontentloaded')
+
+            result = await self._drive_okta_widget(self.mfa_code)
+            if result is True:
+                await self._collect_mymeter_cookies()
+            return result
+        except Exception as e:
+            _LOGGER.error(f"Error during Okta sign-in: {e}")
+            return False
+
+    async def _drive_okta_widget(self, mfa_code: Optional[str]):
+        """Step through the Okta Sign-In Widget until the MyMeter dashboard loads.
+
+        Okta decides which pages to show (username, password, authenticator choice,
+        code entry) and in which order, so each pass acts on whatever is on screen.
+        Returns True on success, "MFA_REQUIRED" when a verification code is needed
+        and none was given, or False on failure.
+        """
+        mymeter_host = self.site_config["mymeter_host"]
+        code_submitted = False
+        steps_taken = []
+
+        for _ in range(40):
+            await asyncio.sleep(1.5)
+            current_url = self.page.url
+
+            if mymeter_host in current_url:
+                if "/Dashboard" in current_url:
+                    try:
+                        await self.page.wait_for_load_state('networkidle', timeout=15000)
+                    except Exception:
+                        pass
+                    _LOGGER.info("✅ MyMeter dashboard loaded")
+                    return True
+                # Still in MyMeter's SAML / account selection redirects
+                continue
+
+            error = await self._okta_form_error()
+            if error:
+                _LOGGER.error("❌ Okta sign-in error: %s", error)
+                await self._save_debug_page("okta_fail_debug.html")
+                return False
+
+            step = await self._okta_widget_step(mfa_code, code_submitted)
+            if step == "MFA_REQUIRED":
+                return "MFA_REQUIRED"
+            if step == "code":
+                code_submitted = True
+            if step:
+                steps_taken.append(step)
+                # The same page coming back three times in a row means the widget is stuck
+                if steps_taken[-3:] == [step] * 3:
+                    _LOGGER.error("❌ Okta sign-in stuck at step '%s' (%s)", step, current_url.split('?')[0])
+                    await self._save_debug_page("okta_fail_debug.html")
+                    return False
+
+        _LOGGER.error("❌ Timed out waiting for the MyMeter dashboard. Current URL: %s", self.page.url.split('?')[0])
+        await self._save_debug_page("okta_fail_debug.html")
+        return False
+
+    async def _okta_widget_step(self, mfa_code: Optional[str], code_submitted: bool) -> Optional[str]:
+        """Act on the current Okta Sign-In Widget page. Returns the name of the step taken, or None."""
+        # Verification code entry - Okta reuses the passcode field, which is a password field only on the password page
+        code_input = await self._first_visible('input[name="credentials.passcode"]:not([type="password"])')
+        if code_input:
+            if code_submitted:
+                return None
+            if not mfa_code:
+                _LOGGER.info("🔐 Verification code required")
+                return "MFA_REQUIRED"
+            _LOGGER.info("📝 Entering verification code...")
+            await code_input.fill(mfa_code)
+            await self._submit_okta_form(code_input)
+            return "code"
+
+        identifier_input = await self._first_visible('input[name="identifier"]')
+        if identifier_input:
+            _LOGGER.info("📝 Entering username...")
+            await identifier_input.fill(self.email)
+            # Some Okta policies ask for the password on the same page
+            password_input = await self._first_visible('input[name="credentials.passcode"][type="password"]')
+            if password_input:
+                await password_input.fill(self.password)
+            await self._submit_okta_form(identifier_input)
+            return "username"
+
+        password_input = await self._first_visible('input[name="credentials.passcode"][type="password"]')
+        if password_input:
+            _LOGGER.info("📝 Entering password...")
+            await password_input.fill(self.password)
+            await self._submit_okta_form(password_input)
+            return "password"
+
+        # Authenticator choice - try the preferred delivery method first
+        authenticators = [("okta_email", "Email"), ("phone_number", "Phone")]
+        if self.mfa_method != "email":
+            authenticators.reverse()
+        for data_se, label in authenticators:
+            select_button = await self._first_visible(
+                f'[data-se="{data_se}"] .select-factor, '
+                f'.authenticator-row:has-text("{label}") .select-factor'
+            )
+            if select_button:
+                _LOGGER.info("📱 Selecting %s for the verification code", label.lower())
+                await select_button.click()
+                await self._wait_hidden(select_button)
+                return f"select-{data_se}"
+
+        # Send the code ("Receive a code via SMS" / "Send me an email")
+        send_button = await self._first_visible(
+            'input[type="submit"][value*="SMS" i], input[type="submit"][value*="email" i], '
+            'button:has-text("Receive a code via SMS"), button:has-text("Send me an email")'
+        )
+        if send_button:
+            _LOGGER.info("📤 Requesting verification code...")
+            await send_button.click()
+            await self._wait_hidden(send_button)
+            return "send-code"
+
+        # The email challenge offers a magic link first; switch to entering the code
+        code_instead = await self._first_visible(
+            '.enter-auth-code-instead-link, a:has-text("Enter a verification code instead")'
+        )
+        if code_instead:
+            await code_instead.click()
+            await self._wait_hidden(code_instead)
+            return "code-instead"
+
+        return None
+
+    async def _first_visible(self, selector: str):
+        """Return the first visible element matching selector, or None."""
+        for element in await self.page.query_selector_all(selector):
+            try:
+                if await element.is_visible():
+                    return element
+            except Exception:
+                continue
+        return None
+
+    async def _wait_hidden(self, element, timeout: int = 15000):
+        """Wait for an element to disappear, e.g. when the Okta widget moves to its next page."""
+        try:
+            await element.wait_for_element_state("hidden", timeout=timeout)
+        except Exception:
+            pass
+
+    async def _submit_okta_form(self, field):
+        """Submit the Okta form containing field and wait for the widget to move on."""
+        submit = await self._first_visible(
+            '[data-se="o-form"] input[type="submit"], [data-se="o-form"] button[type="submit"]'
+        )
+        if submit:
+            await submit.click()
+        else:
+            await field.press("Enter")
+        await self._wait_hidden(field)
+
+    async def _okta_form_error(self) -> str:
+        """Return the error text the Okta Sign-In Widget is showing, if any."""
+        for selector in ['[data-se="o-form-error-container"]', '.o-form-input-error']:
+            element = await self._first_visible(selector)
+            if element:
+                text = (await element.inner_text() or "").strip()
+                if text:
+                    return text
+        return ""
+
+    async def _save_debug_page(self, filename: str):
+        """Save the current page for inspection after a failed login."""
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(await self.page.content())
+            _LOGGER.error("Page saved to %s for inspection", filename)
+        except Exception:
+            pass
+
+    async def _collect_mymeter_cookies(self):
+        """Store the MyMeter session cookies from the browser context."""
+        await asyncio.sleep(2.0)
+        for cookie in await self.context.cookies(f"https://{self.site_config['mymeter_host']}/"):
+            if cookie['name'] in ['MM_SID', '__RequestVerificationToken']:
+                self.login_cookies[cookie['name']] = cookie['value']
+
+    async def _continue_okta_widget_after_mfa(self, mfa_code: str) -> Optional[str]:
+        """Finish an Okta Sign-In Widget login that stopped for a verification code."""
+        try:
+            if await self._drive_okta_widget(mfa_code) is not True:
+                return None
+            await self._collect_mymeter_cookies()
+            return self.format_cookies_for_api()
+        except Exception as e:
+            _LOGGER.error("MFA continuation failed: %s (type: %s)", e, type(e).__name__)
+            return None
+
     async def continue_after_mfa(self, mfa_code: str) -> Optional[str]:
         """
         Continue login flow after MFA challenge. Call when get_cookies() returns 'MFA_REQUIRED'.
         Browser must still be on the MFA challenge page.
         """
+        if self.site_config.get("okta_signin_url"):
+            return await self._continue_okta_widget_after_mfa(mfa_code)
         try:
             _LOGGER.info("📝 Entering MFA code...")
             # Wait for code input - check main frame and iframes (Okta may use iframe)
@@ -790,10 +1014,13 @@ class PSEGAutoLogin:
                 _LOGGER.error("❌ Failed to setup browser")
                 return None
             
-            # Follow the realistic browsing pattern
-            result = await self.simulate_realistic_browsing()
+            if self.site_config.get("okta_signin_url"):
+                result = await self.login_via_okta_widget()
+            else:
+                # Follow the realistic browsing pattern
+                result = await self.simulate_realistic_browsing()
             if result is False:
-                _LOGGER.error("❌ Realistic browsing pattern failed")
+                _LOGGER.error("❌ Login flow failed")
                 return None
             if result == "MFA_REQUIRED":
                 # Caller should use continue_after_mfa(code) - do NOT cleanup, keep browser alive
@@ -898,19 +1125,23 @@ async def main():
                         help='MFA delivery: email (default) or sms')
     parser.add_argument('--headed', action='store_true',
                         help='Run with visible browser (for debugging)')
-    
+    parser.add_argument('--site', choices=list(SITES), default=DEFAULT_SITE,
+                        help='MyMeter site to log in to')
+
     args = parser.parse_args()
-    
+
     _LOGGER.info("🚀 Starting PSEG Auto Login - Home Assistant Addon")
     _LOGGER.info(f"📧 Email: {args.email}")
+    _LOGGER.info("🌐 Site: %s", SITES[args.site]["name"])
     _LOGGER.info("🔒 Headless mode: %s", not args.headed)
     _LOGGER.info("📱 MFA method: %s", args.mfa_method)
-    
+
     cookie_getter = PSEGAutoLogin(
         email=args.email,
         password=args.password,
         mfa_method=args.mfa_method,
         headless=not args.headed,
+        site=args.site,
     )
     cookies = await cookie_getter.get_cookies()
     

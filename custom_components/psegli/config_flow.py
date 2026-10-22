@@ -8,7 +8,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.yaml import load_yaml
 
-from .const import DOMAIN, CONF_COOKIE, CONF_USERNAME, CONF_PASSWORD, CONF_MFA_METHOD
+from .const import DOMAIN, CONF_COOKIE, CONF_USERNAME, CONF_PASSWORD, CONF_MFA_METHOD, CONF_SITE, DEFAULT_SITE, SITES
 from .psegli import PSEGLIClient
 from .exceptions import InvalidAuth
 from .auto_login import get_fresh_cookies, complete_mfa_login, MFA_REQUIRED
@@ -40,13 +40,14 @@ class PSEGLIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 username = user_input[CONF_USERNAME]
                 password = user_input[CONF_PASSWORD]
                 cookie = user_input.get(CONF_COOKIE, "")
+                site = user_input.get(CONF_SITE, DEFAULT_SITE)
                 
                 # If no cookie provided, try to get one from the addon
                 if not cookie:
                     _LOGGER.debug("No cookie provided, attempting to get fresh cookies from addon...")
                     try:
                         cookies = await get_fresh_cookies(
-                            username, password, mfa_method=user_input.get(CONF_MFA_METHOD, "email")
+                            username, password, mfa_method=user_input.get(CONF_MFA_METHOD, "email"), site=site
                         )
                         
                         if cookies == MFA_REQUIRED:
@@ -55,6 +56,7 @@ class PSEGLIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             self.context["username"] = username
                             self.context["password"] = password
                             self.context["mfa_method"] = user_input.get(CONF_MFA_METHOD, "sms")
+                            self.context["site"] = site
                             return self.async_show_form(
                                 step_id="mfa",
                                 data_schema=vol.Schema({
@@ -77,7 +79,7 @@ class PSEGLIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 
                 # If we have a cookie, validate it
                 if cookie:
-                    client = PSEGLIClient(cookie)
+                    client = PSEGLIClient(cookie, site)
                     await client.test_connection()
                     _LOGGER.debug("Cookie validation successful")
                 else:
@@ -85,12 +87,13 @@ class PSEGLIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 # Create the config entry
                 return self.async_create_entry(
-                    title="PSEG Long Island",
+                    title=SITES[site]["name"],
                     data={
                         CONF_USERNAME: username,
                         CONF_PASSWORD: password,
                         CONF_COOKIE: cookie,
                         CONF_MFA_METHOD: user_input.get(CONF_MFA_METHOD, "sms"),
+                        CONF_SITE: site,
                     },
                 )
 
@@ -122,16 +125,18 @@ class PSEGLIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         username = self.context.get("username")
                         password = self.context.get("password")
                         mfa_method = self.context.get("mfa_method", "sms")
+                        site = self.context.get("site", DEFAULT_SITE)
                         if username and password:
-                            client = PSEGLIClient(cookies)
+                            client = PSEGLIClient(cookies, site)
                             await client.test_connection()
                             return self.async_create_entry(
-                                title="PSEG Long Island",
+                                title=SITES[site]["name"],
                                 data={
                                     CONF_USERNAME: username,
                                     CONF_PASSWORD: password,
                                     CONF_COOKIE: cookies,
                                     CONF_MFA_METHOD: mfa_method,
+                                    CONF_SITE: site,
                                 },
                             )
                     errors["base"] = "mfa_failed"
@@ -158,6 +163,9 @@ class PSEGLIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return vol.Schema({
             vol.Required(CONF_USERNAME): str,
             vol.Required(CONF_PASSWORD): str,
+            vol.Optional(CONF_SITE, default=DEFAULT_SITE): vol.In(
+                {key: site["name"] for key, site in SITES.items()}
+            ),
             vol.Optional(CONF_COOKIE): str,
             vol.Optional(CONF_MFA_METHOD, default="sms"): vol.In(["email", "sms"]),
         })
@@ -181,7 +189,7 @@ class PSEGLIOptionsFlow(config_entries.OptionsFlow):
                 
                 # If user provided a new cookie, validate it
                 if new_cookie:
-                    client = PSEGLIClient(new_cookie)
+                    client = PSEGLIClient(new_cookie, self.config_entry.data.get(CONF_SITE, DEFAULT_SITE))
                     await client.test_connection()
                     _LOGGER.debug("New cookie validation successful")
                     
@@ -211,7 +219,12 @@ class PSEGLIOptionsFlow(config_entries.OptionsFlow):
                                 self.config_entry,
                                 data={**self.config_entry.data, CONF_MFA_METHOD: mfa_method},
                             )
-                        cookies = await get_fresh_cookies(username, password, mfa_method=mfa_method)
+                        cookies = await get_fresh_cookies(
+                            username,
+                            password,
+                            mfa_method=mfa_method,
+                            site=self.config_entry.data.get(CONF_SITE, DEFAULT_SITE),
+                        )
                         
                         if cookies == MFA_REQUIRED:
                             return self.async_show_form(
@@ -228,7 +241,7 @@ class PSEGLIOptionsFlow(config_entries.OptionsFlow):
                             cookie_string = cookies
                             
                             # Validate the cookie
-                            client = PSEGLIClient(cookie_string)
+                            client = PSEGLIClient(cookie_string, self.config_entry.data.get(CONF_SITE, DEFAULT_SITE))
                             await client.test_connection()
                             
                             # Update the config entry
@@ -282,7 +295,7 @@ class PSEGLIOptionsFlow(config_entries.OptionsFlow):
                 try:
                     cookies = await complete_mfa_login(mfa_code)
                     if cookies:
-                        client = PSEGLIClient(cookies)
+                        client = PSEGLIClient(cookies, self.config_entry.data.get(CONF_SITE, DEFAULT_SITE))
                         await client.test_connection()
                         self.hass.config_entries.async_update_entry(
                             self.config_entry,

@@ -19,7 +19,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_COOKIE, CONF_MFA_METHOD
+from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_COOKIE, CONF_MFA_METHOD, CONF_SITE, DEFAULT_SITE
 from .psegli import InvalidAuth, PSEGLIClient
 from .auto_login import get_fresh_cookies, complete_mfa_login, check_addon_health, MFA_REQUIRED
 
@@ -124,7 +124,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.debug("No cookie available, attempting to get fresh cookies from addon...")
         try:
             mfa_method = entry.data.get(CONF_MFA_METHOD, "sms")
-            cookies = await get_fresh_cookies(username, password, mfa_method=mfa_method)
+            cookies = await get_fresh_cookies(
+                username, password, mfa_method=mfa_method, site=entry.data.get(CONF_SITE, DEFAULT_SITE)
+            )
             
             if cookies and cookies != MFA_REQUIRED:
                 # Cookies are already in string format from addon
@@ -175,7 +177,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
     
     # Create client (cookie may be empty if MFA pending - enter_mfa_code will update it)
-    client = PSEGLIClient(cookie or "")
+    client = PSEGLIClient(cookie or "", entry.data.get(CONF_SITE, DEFAULT_SITE))
     hass.data[DOMAIN][entry.entry_id] = client
     
     # Test connection only when we have a cookie (skip when MFA pending)
@@ -258,7 +260,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             
             # Attempt to get fresh cookies
             mfa_method = entry.data.get(CONF_MFA_METHOD, "sms")
-            cookies = await get_fresh_cookies(username, password, mfa_method=mfa_method)
+            cookies = await get_fresh_cookies(
+                username, password, mfa_method=mfa_method, site=entry.data.get(CONF_SITE, DEFAULT_SITE)
+            )
             
             if cookies == MFA_REQUIRED:
                 channel = "phone" if mfa_method == "sms" else "email"
@@ -466,7 +470,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             
             # Attempt to get fresh cookies
             mfa_method = entry.data.get(CONF_MFA_METHOD, "sms")
-            cookies = await get_fresh_cookies(username, password, mfa_method=mfa_method)
+            cookies = await get_fresh_cookies(
+                username, password, mfa_method=mfa_method, site=entry.data.get(CONF_SITE, DEFAULT_SITE)
+            )
             
             if cookies == MFA_REQUIRED:
                 channel = "phone" if mfa_method == "sms" else "email"

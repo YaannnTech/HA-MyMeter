@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
 
-from auto_login import get_fresh_cookies, PSEGAutoLogin
+from auto_login import get_fresh_cookies, PSEGAutoLogin, DEFAULT_SITE
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +32,7 @@ class LoginRequest(BaseModel):
     password: str
     mfa_code: Optional[str] = None  # If provided, used when MFA challenge appears
     mfa_method: Optional[str] = "sms"  # "email" or "sms" - which method to use for code delivery
+    site: Optional[str] = DEFAULT_SITE  # MyMeter site key from auto_login.SITES, e.g. "pseg_li" or "pseg_nj"
 
 class MfaRequest(BaseModel):
     code: str
@@ -52,7 +53,7 @@ async def login(request: LoginRequest):
     """Login to PSEG and return cookies. If MFA is required, returns mfa_required=true - then POST to /login/mfa with the code."""
     global _mfa_session
     try:
-        logger.info(f"Login attempt for user: {request.username}")
+        logger.info(f"Login attempt for user: {request.username} (site: {request.site or DEFAULT_SITE})")
         
         # Clear any stale MFA session
         if _mfa_session:
@@ -69,6 +70,7 @@ async def login(request: LoginRequest):
             mfa_code=request.mfa_code,
             mfa_method=request.mfa_method or "sms",
             headless=not HEADED,
+            site=request.site or DEFAULT_SITE,
         )
         result = await cookie_getter.get_cookies()
         
@@ -128,9 +130,10 @@ async def login_form(
     password: str = Form(...),
     mfa_code: Optional[str] = Form(None),
     mfa_method: Optional[str] = Form("sms"),
+    site: Optional[str] = Form(DEFAULT_SITE),
 ):
     """Login endpoint that accepts form data."""
-    return await login(LoginRequest(username=username, password=password, mfa_code=mfa_code, mfa_method=mfa_method))
+    return await login(LoginRequest(username=username, password=password, mfa_code=mfa_code, mfa_method=mfa_method, site=site))
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -7,7 +7,7 @@ from typing import Optional
 
 import aiohttp
 
-from .const import DEFAULT_ADDON_URL
+from .const import DEFAULT_ADDON_URL, DEFAULT_SITE
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +114,7 @@ async def get_fresh_cookies(
     password: str,
     mfa_code: Optional[str] = None,
     mfa_method: str = "sms",
+    site: str = DEFAULT_SITE,
 ) -> Optional[str]:
     """Get fresh cookies using the automation addon.
 
@@ -130,6 +131,7 @@ async def get_fresh_cookies(
         "username": username,
         "password": password,
         "mfa_method": mfa_method or "sms",
+        "site": site,
     }
     if mfa_code:
         login_data["mfa_code"] = mfa_code

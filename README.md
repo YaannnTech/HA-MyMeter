@@ -17,6 +17,15 @@ This integration uses a **two-component approach**:
 4. **Data Retrieval**: Integration fetches energy usage data from PSEG API
 5. **Automatic Refresh**: Cookies are automatically refreshed when they expire
 
+## 🌐 **Supported Utilities**
+
+| Utility | Site | Login |
+|---|---|---|
+| PSEG Long Island (default) | `mysmartenergy.psegliny.com` | PSEG Long Island My Account |
+| PSE&G New Jersey | `mysmartenergy.nj.pseg.com` | PSE&G My Account (Okta), with email or SMS verification code |
+
+Choose the utility when adding the integration. Both use the same MyMeter usage portal, so the energy data and statistics work the same way.
+
 ## 📋 **Prerequisites**
 
 - Home Assistant OS, Core, or Supervised installation
@@ -174,6 +183,12 @@ The addon provides these endpoints:
 - `POST /login-form` - Login with form data
 
 ## 📝 **Changelog**
+
+### **v2.5.0**
+
+- Add PSE&G New Jersey support: choose the utility during integration setup (existing setups stay on PSEG Long Island)
+- Addon: new `site` field on `POST /login` (`pseg_li` default, `pseg_nj`); NJ logs in through MyMeter's SAML sign-in and PSE&G's Okta page, including email/SMS MFA
+- Switch addon base image to Debian 12 (bookworm); Debian 11 packages are no longer available
 
 ### **v2.4.7**
 
