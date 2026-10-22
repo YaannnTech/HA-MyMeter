@@ -276,10 +276,9 @@ class PSEGLIClient:
                         # Replace None values with 0 to ensure continuous data flow
                         if value is None:
                             value = 0
-                        # Timestamps need to be shifted by +4 hours to align with actual peak hours
-                        # Raw timestamp shows 11:00 AM but should be 3:00 PM for peak hours
-                        shifted_timestamp = timestamp + (4 * 3600)  # Add 4 hours
-                        local_time = datetime.fromtimestamp(shifted_timestamp)
+                        # MyMeter encodes the utility's local wall-clock time as if it were UTC, so
+                        # reading it as UTC gives the local hour regardless of DST or the host timezone
+                        local_time = datetime.fromtimestamp(timestamp, tz=timezone.utc).replace(tzinfo=None)
                         valid_points.append({
                             "timestamp": local_time,
                             "value": value
