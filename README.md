@@ -30,7 +30,7 @@ This integration uses a **two-component approach**:
 | PSEG Long Island (default) | `mysmartenergy.psegliny.com` | PSEG Long Island My Account |
 | PSE&G New Jersey | `mysmartenergy.nj.pseg.com` | PSE&G My Account (Okta), with email or SMS verification code |
 
-Choose the utility when adding the integration. Both use the same MyMeter usage portal, so the energy data and statistics work the same way.
+Choose the utility when adding the integration. Both use the same MyMeter usage portal. Time-of-use accounts get `psegli:on_peak_usage` and `psegli:off_peak_usage` statistics; flat-rate accounts (such as PSE&G NJ Residential Service) get a single `psegli:total_usage` statistic. Add it under **Settings → Dashboards → Energy → Electricity grid**.
 
 ## 📋 **Prerequisites**
 
@@ -195,6 +195,7 @@ The addon provides these endpoints:
 - Add PSE&G New Jersey support: choose the utility during integration setup (existing setups stay on PSEG Long Island)
 - Addon: new `site` field on `POST /login` (`pseg_li` default, `pseg_nj`); NJ logs in through MyMeter's SAML sign-in and PSE&G's Okta page, including email/SMS MFA
 - Switch addon base image to Debian 12 (bookworm); Debian 11 packages are no longer available
+- Import usage for flat-rate accounts as `psegli:total_usage` (previously only On-Peak/Off-Peak series were imported)
 - Fix expired sessions being reported as valid: MyMeter answers an expired session with an AJAX redirect instead of a login page, so the scheduled cookie refresh never ran
 
 ### **v2.4.7**

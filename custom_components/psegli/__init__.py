@@ -618,7 +618,11 @@ async def _process_chart_data(hass: HomeAssistant, chart_data: dict[str, Any]) -
     """Process chart data and update statistics."""
     # Create timezone once to avoid blocking calls
     local_tz = await hass.async_add_executor_job(pytz.timezone, 'America/New_York')
-    
+
+    # Time-of-use accounts (e.g. PSEG Long Island) report On-Peak and Off-Peak series;
+    # flat-rate accounts (e.g. PSE&G NJ Residential Service) report a single meter series
+    has_time_of_use = any("Off-Peak" in name or "On-Peak" in name for name in chart_data)
+
     for series_name, series_data in chart_data.items():
         try:
             _LOGGER.debug("Series %s data type: %s", series_name, type(series_data))
@@ -647,6 +651,8 @@ async def _process_chart_data(hass: HomeAssistant, chart_data: dict[str, Any]) -
                 statistic_id = "psegli:off_peak_usage"
             elif "On-Peak" in series_name:
                 statistic_id = "psegli:on_peak_usage"
+            elif not has_time_of_use and series_name != "Temperature":
+                statistic_id = "psegli:total_usage"
             else:
                 continue  # Skip non-peak series
             
