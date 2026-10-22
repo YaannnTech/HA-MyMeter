@@ -636,6 +636,7 @@ class PSEGAutoLogin:
             return result
         except Exception as e:
             _LOGGER.error(f"Error during Okta sign-in: {e}")
+            await self._save_debug_page("okta_fail_debug.html")
             return False
 
     async def _drive_okta_widget(self, mfa_code: Optional[str]):
@@ -670,6 +671,17 @@ class PSEGAutoLogin:
                 _LOGGER.error("❌ Okta sign-in error: %s", error)
                 await self._save_debug_page("okta_fail_debug.html")
                 return False
+
+            if await self._first_visible('iframe[src*="recaptcha"][src*="bframe"]'):
+                _LOGGER.error("❌ Okta is showing a reCAPTCHA challenge, which can't be solved automatically")
+                await self._save_debug_page("okta_fail_debug.html")
+                return False
+
+            # Okta disables the submit button while it processes a page - wait instead of acting again
+            if await self._first_visible(
+                '[data-se="o-form"] input[type="submit"]:disabled, [data-se="o-form"] button[type="submit"]:disabled'
+            ):
+                continue
 
             step = await self._okta_widget_step(mfa_code, code_submitted)
             if step == "MFA_REQUIRED":
@@ -797,11 +809,13 @@ class PSEGAutoLogin:
         return ""
 
     async def _save_debug_page(self, filename: str):
-        """Save the current page for inspection after a failed login."""
+        """Save the current page and a screenshot for inspection after a failed login."""
+        screenshot = filename.rsplit(".", 1)[0] + ".png"
         try:
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(await self.page.content())
-            _LOGGER.error("Page saved to %s for inspection", filename)
+            await self.page.screenshot(path=screenshot, full_page=True)
+            _LOGGER.error("Page saved to %s and %s for inspection", filename, screenshot)
         except Exception:
             pass
 
