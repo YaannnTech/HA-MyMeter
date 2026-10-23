@@ -86,7 +86,7 @@ The integration configuration is simple - just enter your PSEG credentials:
 
 - **Username/Email**: Your PSEG account email address
 - **Password**: Your PSEG account password
-- **Cookie**: A working Cookie from a manual login to https://mysmartenergy.psegliny.com/Dashboard
+- **MM_SID cookie** and **__RequestVerificationToken cookie**: the two session cookies from a manual login to MyMeter (e.g. https://mysmartenergy.psegliny.com/Dashboard). Paste each value into its field; `name=value` or the full `MM_SID=...; __RequestVerificationToken=...` string in either field also works
 
 ### **Automatic Operation**
 
@@ -147,7 +147,7 @@ If the `psegli.enter_mfa_code` action doesn't appear in Developer Tools > Action
 
 1. **Reload the integration** – Go to Settings > Integrations > PSEG Long Island > ⋮ > Reload
 
-2. **Use Options flow** – You can still complete MFA via Settings > Integrations > PSEG Long Island > ⋮ > Options (leave cookie empty, Submit, then enter the code)
+2. **Use Options flow** – You can still complete MFA via Settings > Integrations > PSEG Long Island > ⋮ > Options (leave both cookie fields empty, Submit, then enter the code)
 
 ### **Data Not Updating**
 
@@ -189,6 +189,11 @@ The addon provides these endpoints:
 - `POST /login-form` - Login with form data
 
 ## 📝 **Changelog**
+
+### **v2.6.0**
+
+- Enter the session cookies in two fields, MM_SID and __RequestVerificationToken, instead of one combined cookie string. Each field accepts the bare value, `name=value`, or the full cookie string
+- Form labels and error messages now show in Home Assistant (they were in a file Home Assistant does not read)
 
 ### **v2.5.6**
 

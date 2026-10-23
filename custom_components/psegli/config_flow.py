@@ -1,5 +1,7 @@
 """Config flow for PSEG Long Island integration."""
 import logging
+from typing import Any
+
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -8,13 +10,48 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.yaml import load_yaml
 
-from .const import DOMAIN, CONF_COOKIE, CONF_USERNAME, CONF_PASSWORD, CONF_MFA_METHOD, CONF_SITE, DEFAULT_SITE, SITES
+from .const import (
+    DOMAIN, CONF_COOKIE, CONF_USERNAME, CONF_PASSWORD, CONF_MFA_METHOD, CONF_SITE, DEFAULT_SITE, SITES,
+    CONF_MM_SID, CONF_REQUEST_TOKEN,
+)
 from .psegli import PSEGLIClient
 from .exceptions import InvalidAuth
 from .auto_login import get_fresh_cookies, complete_mfa_login, MFA_REQUIRED
 
 _LOGGER = logging.getLogger(__name__)
 
+COOKIE_NAMES = {CONF_MM_SID: "MM_SID", CONF_REQUEST_TOKEN: "__RequestVerificationToken"}
+
+
+class IncompleteCookie(Exception):
+    """Only one of the two cookie fields was filled in."""
+
+
+def _cookie_from_input(user_input: dict[str, Any]) -> str:
+    """Build the cookie string from the MM_SID and __RequestVerificationToken fields.
+
+    Each field takes the bare value or name=value. A full "MM_SID=...; __RequestVerificationToken=..."
+    string pasted into either field works too. Returns "" when both fields are empty.
+    """
+    values = {}
+    for key, name in COOKIE_NAMES.items():
+        text = (user_input.get(key) or "").strip()
+        if not text:
+            continue
+        named = {}
+        for part in text.split(";"):
+            part_name, separator, value = part.strip().partition("=")
+            if separator and part_name in COOKIE_NAMES.values():
+                named[part_name] = value.strip()
+        if named:
+            values.update(named)
+        else:
+            values[name] = text
+    if not values:
+        return ""
+    if len(values) < len(COOKIE_NAMES):
+        raise IncompleteCookie
+    return "; ".join(f"{name}={values[name]}" for name in COOKIE_NAMES.values())
 
 class PSEGLIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for PSEG Long Island."""
@@ -39,7 +76,7 @@ class PSEGLIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 # Get credentials from user input
                 username = user_input[CONF_USERNAME]
                 password = user_input[CONF_PASSWORD]
-                cookie = user_input.get(CONF_COOKIE, "")
+                cookie = _cookie_from_input(user_input)
                 site = user_input.get(CONF_SITE, DEFAULT_SITE)
                 
                 # If no cookie provided, try to get one from the addon
@@ -97,6 +134,8 @@ class PSEGLIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     },
                 )
 
+            except IncompleteCookie:
+                errors["base"] = "cookie_incomplete"
             except InvalidAuth:
                 errors["base"] = "invalid_auth"
             except Exception as e:  # pylint: disable=broad-except
@@ -166,7 +205,8 @@ class PSEGLIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional(CONF_SITE, default=DEFAULT_SITE): vol.In(
                 {key: site["name"] for key, site in SITES.items()}
             ),
-            vol.Optional(CONF_COOKIE): str,
+            vol.Optional(CONF_MM_SID): str,
+            vol.Optional(CONF_REQUEST_TOKEN): str,
             vol.Optional(CONF_MFA_METHOD, default="sms"): vol.In(["email", "sms"]),
         })
 
@@ -185,7 +225,7 @@ class PSEGLIOptionsFlow(config_entries.OptionsFlow):
                 # Get credentials from config entry
                 username = self.config_entry.data.get(CONF_USERNAME)
                 password = self.config_entry.data.get(CONF_PASSWORD)
-                new_cookie = user_input.get(CONF_COOKIE, "")
+                new_cookie = _cookie_from_input(user_input)
                 
                 # If user provided a new cookie, validate it
                 if new_cookie:
@@ -267,6 +307,8 @@ class PSEGLIOptionsFlow(config_entries.OptionsFlow):
                 else:
                     errors["base"] = "credentials_not_found"
 
+            except IncompleteCookie:
+                errors["base"] = "cookie_incomplete"
             except InvalidAuth:
                 errors["base"] = "invalid_auth"
             except Exception:  # pylint: disable=broad-except
@@ -328,7 +370,9 @@ class PSEGLIOptionsFlow(config_entries.OptionsFlow):
     def _get_options_schema(self):
         """Return the schema for the options flow."""
         return vol.Schema({
-            vol.Optional(CONF_COOKIE, description="Leave empty to attempt automatic refresh via addon"): str,
+            # Leave both empty to attempt automatic refresh via addon
+            vol.Optional(CONF_MM_SID): str,
+            vol.Optional(CONF_REQUEST_TOKEN): str,
             vol.Optional(
                 CONF_MFA_METHOD,
                 default=self.config_entry.data.get(CONF_MFA_METHOD, "sms"),

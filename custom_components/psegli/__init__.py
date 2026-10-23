@@ -476,8 +476,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     f"The {site['name']} MyMeter session has expired, so usage data is no longer updated.\n\n"
                     f"Sign in at https://{site['mymeter_host']}/ and copy the `MM_SID` and "
                     "`__RequestVerificationToken` cookies. Then go to Settings > Devices & services > "
-                    f"{entry.title} > Configure and paste them as "
-                    "`MM_SID=...; __RequestVerificationToken=...`."
+                    f"{entry.title} > Configure and paste each value into its field."
                 ),
                 "notification_id": "psegli_auth_failed",
             },

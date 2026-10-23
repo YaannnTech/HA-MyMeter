@@ -1,0 +1,68 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MyMeter",
+        "data": {
+          "username": "Username / email",
+          "password": "Password",
+          "site": "Utility",
+          "mm_sid": "MM_SID cookie",
+          "request_verification_token": "__RequestVerificationToken cookie",
+          "mfa_method": "Send verification codes via"
+        }
+      },
+      "mfa": {
+        "title": "Verification code",
+        "description": "{message}",
+        "data": {
+          "mfa_code": "Verification code"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "MyMeter did not accept the cookies or credentials. Check them and try again.",
+      "cookie_incomplete": "Enter both cookies: MM_SID and __RequestVerificationToken.",
+      "login_failed": "Login failed. Please check your credentials and try again.",
+      "unknown": "Unexpected error occurred.",
+      "mfa_code_required": "Please enter the verification code from your email or phone.",
+      "mfa_failed": "MFA verification failed. The code may be invalid or expired.",
+      "addon_unavailable": "Addon not available. Please ensure the PSEG automation addon is installed and running.",
+      "addon_failed": "Addon failed to get cookies.",
+      "credentials_not_found": "No username or password configured. Please reconfigure the integration."
+    },
+    "abort": {
+      "already_configured": "Device is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update session cookies",
+        "data": {
+          "mm_sid": "MM_SID cookie",
+          "request_verification_token": "__RequestVerificationToken cookie",
+          "mfa_method": "Send verification codes via"
+        }
+      },
+      "mfa": {
+        "title": "Verification code",
+        "description": "{message}",
+        "data": {
+          "mfa_code": "Verification code"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "MyMeter did not accept the cookies or credentials. Check them and try again.",
+      "cookie_incomplete": "Enter both cookies: MM_SID and __RequestVerificationToken.",
+      "login_failed": "Login failed. Please check your credentials and try again.",
+      "unknown": "Unexpected error occurred.",
+      "mfa_code_required": "Please enter the verification code from your email or phone.",
+      "mfa_failed": "MFA verification failed. The code may be invalid or expired.",
+      "addon_unavailable": "Addon not available. Please ensure the PSEG automation addon is installed and running.",
+      "addon_failed": "Addon failed to get cookies.",
+      "credentials_not_found": "No username or password configured. Please reconfigure the integration."
+    }
+  }
+}

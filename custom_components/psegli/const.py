@@ -12,6 +12,9 @@ CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_MFA_METHOD = "mfa_method"  # "email" or "sms"
 CONF_SITE = "site"
+# Form fields for the two MyMeter session cookies; stored together as CONF_COOKIE
+CONF_MM_SID = "mm_sid"
+CONF_REQUEST_TOKEN = "request_verification_token"
 
 # MyMeter sites, keyed like the addon's SITES.
 # service_type: MyMeter's /Dashboard/SetServiceType value for electric (1), for sites whose
