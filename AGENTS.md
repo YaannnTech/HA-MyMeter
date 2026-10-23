@@ -23,12 +23,14 @@ The supported sites are defined twice and must stay in sync: `SITES` in `addons/
 
 - Data endpoints: `/Dashboard` (HTML with a `__RequestVerificationToken` form field), `POST /Dashboard/Chart` (sets the chart context), `GET /Dashboard/ChartData` (JSON series).
 - Session cookies: `MM_SID` and `__RequestVerificationToken`. The add-on returns them as `MM_SID=...; __RequestVerificationToken=...`, which is also the format of the manual cookie field.
-- `MM_SID` is an ASP.NET Core cookie (`CfDJ8...`), probably with the expiry inside the value. MyMeter extends a session by sending a new `MM_SID` with Set-Cookie, so the client keeps cookies in the `requests` cookie jar (never a fixed `Cookie` header) and the integration stores renewed cookies back in the config entry.
+- `MM_SID` is an ASP.NET Core cookie (`CfDJ8...`). The client keeps cookies in the `requests` cookie jar (never a fixed `Cookie` header) and stores any renewed cookie back in the config entry, in case MyMeter ever sends one.
 - An expired session does not produce a login URL. Because the client sends `X-Requested-With: XMLHttpRequest`, MyMeter answers `/Dashboard` with HTTP 200 and `{"AjaxResults":[{"Action":"Redirect","Value":"/"}]}`. Without that header it redirects to `/`. See `PSEGLIClient._is_logged_out`.
 - Chart timestamps are the utility's local wall-clock time encoded as if UTC. Read them with `datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None)`; never add a fixed offset.
 - Data lags about two days behind real time.
 - Time-of-use accounts (LI) return On-Peak/Off-Peak series (`psegli:on_peak_usage`, `psegli:off_peak_usage`). Flat-rate accounts (NJ Residential Service) return one meter series, imported as `psegli:total_usage`. Temperature is always skipped.
 - PSE&G NJ gas is monthly only and is intentionally not imported.
+- `POST /Dashboard/Chart` does not name a meter: MyMeter answers with the meter and view last selected on its website (per account or session). If the user last viewed gas, the chart comes back monthly; `_process_chart_data` skips series that are not hourly.
+- MyMeter does not renew `MM_SID` via Set-Cookie on `/Dashboard`; sessions end after a server-side idle timeout between 4 and 10 minutes. The integration sends a keep-alive every 4 minutes.
 
 ## PSE&G NJ login
 

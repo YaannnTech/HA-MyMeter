@@ -13,6 +13,19 @@ update_statistics:
           max: 365
           step: 1
 
+clear_statistics:
+  name: "Clear PSEG Statistics"
+  description: "Delete the usage statistics this integration imported, e.g. after wrong data was imported. Run Update PSEG Statistics with Days Back afterwards to import them again."
+  fields:
+    statistic_ids:
+      name: "Statistic IDs"
+      description: "Statistics to delete (default: psegli:total_usage, psegli:on_peak_usage, psegli:off_peak_usage)"
+      required: false
+      example: "psegli:total_usage"
+      selector:
+        text:
+          multiple: true
+
 refresh_cookie:
   name: "Refresh PSEG Cookie"
   description: "Manually refresh the PSEG authentication cookie using the addon"

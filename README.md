@@ -190,6 +190,13 @@ The addon provides these endpoints:
 
 ## 📝 **Changelog**
 
+### **v2.5.4**
+
+- Skip chart series that are not hourly: MyMeter returns the chart last viewed on its website, and a monthly view (e.g. PSE&G NJ gas) was imported as hourly kWh
+- New action `psegli.clear_statistics` to delete imported statistics, e.g. to re-import them with `update_statistics` after wrong data was imported
+- Specify `mean_type` and `unit_class` for imported statistics (required from Home Assistant 2026.11)
+- Debug log no longer includes the `__RequestVerificationToken` value
+
 ### **v2.5.3**
 
 - Send the keep-alive every 4 minutes instead of 10: MyMeter sessions appear to last about 10 minutes and are only renewed by a request in the second half of that time

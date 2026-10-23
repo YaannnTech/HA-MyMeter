@@ -166,7 +166,7 @@ class PSEGLIClient:
         
         _LOGGER.debug("Making Chart/ setup request with hourly granularity (start: %s, end: %s)", 
                     start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
-        _LOGGER.debug("Chart setup data: %s", chart_setup_data)
+        _LOGGER.debug("Chart setup data: %s", {**chart_setup_data, "__RequestVerificationToken": "<redacted>"})
         
         chart_setup_response = self.session.post(chart_setup_url, data=chart_setup_data, timeout=REQUEST_TIMEOUT)
         chart_setup_response.raise_for_status()

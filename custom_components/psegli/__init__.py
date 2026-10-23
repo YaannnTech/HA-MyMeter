@@ -13,6 +13,10 @@ from homeassistant.components.recorder.statistics import (
     get_last_statistics,
 )
 from homeassistant.components.recorder import get_instance
+try:
+    from homeassistant.components.recorder.models import StatisticMeanType
+except ImportError:  # older Home Assistant versions
+    StatisticMeanType = None
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
@@ -238,6 +242,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DOMAIN,
         "update_statistics",
         async_update_statistics_manual
+    )
+    
+    # Register a service to remove imported statistics, e.g. after wrong data was imported
+    async def async_clear_statistics(call: Any) -> None:
+        """Delete the integration's imported statistics so they can be imported again."""
+        statistic_ids = call.data.get("statistic_ids") or [
+            "psegli:total_usage",
+            "psegli:on_peak_usage",
+            "psegli:off_peak_usage",
+        ]
+        get_instance(hass).async_clear_statistics(statistic_ids)
+        _LOGGER.info("Cleared statistics: %s", ", ".join(statistic_ids))
+
+    hass.services.async_register(
+        DOMAIN,
+        "clear_statistics",
+        async_clear_statistics
     )
     
     # Register the cookie refresh service
@@ -715,6 +736,18 @@ async def _process_chart_data(hass: HomeAssistant, chart_data: dict[str, Any]) -
                 _LOGGER.warning("Valid points is not a list: %s", type(valid_points))
                 continue
             
+            # Statistics are hourly; MyMeter returns the chart last viewed on the website,
+            # which can be a monthly view (e.g. a gas meter) that must not be imported as hours
+            if len(valid_points) > 1:
+                first, second = valid_points[0].get("timestamp"), valid_points[1].get("timestamp")
+                if isinstance(first, datetime) and isinstance(second, datetime) and second - first > timedelta(hours=1):
+                    _LOGGER.warning(
+                        "Skipping %s - readings are %s apart, not hourly. MyMeter returns the chart last viewed "
+                        "on its website; open the electric meter's hourly view there",
+                        series_name, second - first,
+                    )
+                    continue
+            
             # Determine which statistic this series maps to
             if "Off-Peak" in series_name:
                 statistic_id = "psegli:off_peak_usage"
@@ -844,6 +877,10 @@ async def _process_chart_data(hass: HomeAssistant, chart_data: dict[str, Any]) -
                     "has_sum": True,  # Set to True since we're sending cumulative totals
                     "name": f"PSEG {series_name}",
                 }
+                # Required from Home Assistant 2026.11
+                if StatisticMeanType is not None:
+                    metadata["mean_type"] = StatisticMeanType.NONE
+                    metadata["unit_class"] = "energy"
                 
                 _LOGGER.debug("Using metadata: %s", metadata)
                 
@@ -959,6 +996,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Remove the services
     hass.services.async_remove(DOMAIN, "update_statistics")
+    hass.services.async_remove(DOMAIN, "clear_statistics")
     hass.services.async_remove(DOMAIN, "refresh_cookie")
     hass.services.async_remove(DOMAIN, "enter_mfa_code")
     
