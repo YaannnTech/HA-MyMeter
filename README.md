@@ -197,6 +197,7 @@ The addon provides these endpoints:
 - Switch addon base image to Debian 12 (bookworm); Debian 11 packages are no longer available
 - Import usage for flat-rate accounts as `psegli:total_usage` (previously only On-Peak/Off-Peak series were imported)
 - Fix hourly readings shifting by an hour outside daylight saving time (and by 4 hours on hosts not set to Eastern time): read MyMeter's timestamps as local wall-clock time instead of adding a fixed 4 hours
+- Fix a cookie entered via Configure not being used until the integration was reloaded
 - Fix expired sessions being reported as valid: MyMeter answers an expired session with an AJAX redirect instead of a login page, so the scheduled cookie refresh never ran
 
 ### **v2.4.7**

@@ -851,6 +851,11 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Update options for PSEG Long Island."""
     # Don't reload the entire config entry - just update the data
     # This prevents creating multiple scheduled tasks
+    # The running client still holds the old cookie, so hand it the one just saved
+    client = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    cookie = entry.data.get(CONF_COOKIE, "")
+    if client and cookie:
+        client.update_cookie(cookie)
     _LOGGER.debug("Options updated - no reload needed")
 
 
