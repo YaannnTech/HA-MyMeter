@@ -736,6 +736,16 @@ async def _process_chart_data(hass: HomeAssistant, chart_data: dict[str, Any]) -
                 _LOGGER.warning("Valid points is not a list: %s", type(valid_points))
                 continue
             
+            # Determine which statistic this series maps to
+            if "Off-Peak" in series_name:
+                statistic_id = "psegli:off_peak_usage"
+            elif "On-Peak" in series_name:
+                statistic_id = "psegli:on_peak_usage"
+            elif not has_time_of_use and series_name != "Temperature":
+                statistic_id = "psegli:total_usage"
+            else:
+                continue  # Skip non-peak series
+            
             # Statistics are hourly; MyMeter returns the chart last viewed on the website,
             # which can be a monthly view (e.g. a gas meter) that must not be imported as hours
             if len(valid_points) > 1:
@@ -747,16 +757,6 @@ async def _process_chart_data(hass: HomeAssistant, chart_data: dict[str, Any]) -
                         series_name, second - first,
                     )
                     continue
-            
-            # Determine which statistic this series maps to
-            if "Off-Peak" in series_name:
-                statistic_id = "psegli:off_peak_usage"
-            elif "On-Peak" in series_name:
-                statistic_id = "psegli:on_peak_usage"
-            elif not has_time_of_use and series_name != "Temperature":
-                statistic_id = "psegli:total_usage"
-            else:
-                continue  # Skip non-peak series
             
             statistics = []
             

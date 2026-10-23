@@ -190,6 +190,10 @@ The addon provides these endpoints:
 
 ## 📝 **Changelog**
 
+### **v2.5.6**
+
+- Check for hourly readings only on series that are imported (no more warning about the Temperature series)
+
 ### **v2.5.5**
 
 - PSE&G NJ: select the electric meter (`/Dashboard/SetServiceType?ServiceType=1`) before fetching usage, so the data no longer depends on the meter last viewed on the MyMeter website
