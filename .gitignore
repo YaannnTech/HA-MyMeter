@@ -112,3 +112,6 @@ celerybeat.pid
 dmypy.json 
 
 *.local.md
+
+# Add-on debug output from failed Okta logins (page HTML and screenshot)
+okta_fail_debug.*
