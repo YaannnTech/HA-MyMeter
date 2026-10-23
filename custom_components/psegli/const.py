@@ -13,10 +13,12 @@ CONF_PASSWORD = "password"
 CONF_MFA_METHOD = "mfa_method"  # "email" or "sms"
 CONF_SITE = "site"
 
-# MyMeter sites, keyed like the addon's SITES
+# MyMeter sites, keyed like the addon's SITES.
+# service_type: MyMeter's /Dashboard/SetServiceType value for electric (1), for sites whose
+# accounts can also have gas (4); the chart otherwise shows whatever was last viewed.
 SITES = {
     "pseg_li": {"name": "PSEG Long Island", "mymeter_host": "mysmartenergy.psegliny.com"},
-    "pseg_nj": {"name": "PSE&G New Jersey", "mymeter_host": "mysmartenergy.nj.pseg.com"},
+    "pseg_nj": {"name": "PSE&G New Jersey", "mymeter_host": "mysmartenergy.nj.pseg.com", "service_type": 1},
 }
 DEFAULT_SITE = "pseg_li"
 

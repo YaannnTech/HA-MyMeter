@@ -29,7 +29,7 @@ The supported sites are defined twice and must stay in sync: `SITES` in `addons/
 - Data lags about two days behind real time.
 - Time-of-use accounts (LI) return On-Peak/Off-Peak series (`psegli:on_peak_usage`, `psegli:off_peak_usage`). Flat-rate accounts (NJ Residential Service) return one meter series, imported as `psegli:total_usage`. Temperature is always skipped.
 - PSE&G NJ gas is monthly only and is intentionally not imported.
-- `POST /Dashboard/Chart` does not name a meter: MyMeter answers with the meter and view last selected on its website (per account or session). If the user last viewed gas, the chart comes back monthly; `_process_chart_data` skips series that are not hourly.
+- `POST /Dashboard/Chart` does not name a meter. The service is chosen with `GET /Dashboard/SetServiceType?ServiceType=N` (302 back to `/Dashboard`; PSE&G NJ: 1 = electric, 4 = gas), stored in the session. Sites with a `service_type` in `SITES` select it before each fetch; as a second guard, `_process_chart_data` skips series that are not hourly.
 - MyMeter does not renew `MM_SID` via Set-Cookie on `/Dashboard`; sessions end after a server-side idle timeout between 4 and 10 minutes. The integration sends a keep-alive every 4 minutes.
 
 ## PSE&G NJ login

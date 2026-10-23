@@ -190,6 +190,10 @@ The addon provides these endpoints:
 
 ## 📝 **Changelog**
 
+### **v2.5.5**
+
+- PSE&G NJ: select the electric meter (`/Dashboard/SetServiceType?ServiceType=1`) before fetching usage, so the data no longer depends on the meter last viewed on the MyMeter website
+
 ### **v2.5.4**
 
 - Skip chart series that are not hourly: MyMeter returns the chart last viewed on its website, and a monthly view (e.g. PSE&G NJ gas) was imported as hourly kWh

@@ -25,6 +25,7 @@ class PSEGLIClient:
     def __init__(self, cookie: str, site: str = DEFAULT_SITE) -> None:
         """Initialize the client."""
         self.base_url = f"https://{SITES[site]['mymeter_host']}"
+        self.service_type = SITES[site].get("service_type")
         self.session = requests.Session()
         self._load_cookies(cookie)
         self.session.headers.update({
@@ -144,6 +145,21 @@ class PSEGLIClient:
         
         return dashboard_response.text, request_token
 
+    def _select_service_type(self) -> None:
+        """Switch the dashboard to the electric meter, if the site has more than one service."""
+        if self.service_type is None:
+            return
+        response = self.session.get(
+            f"{self.base_url}/Dashboard/SetServiceType",
+            params={"ServiceType": self.service_type},
+            timeout=REQUEST_TIMEOUT,
+        )
+        # MyMeter answers with a redirect back to the dashboard (an AJAX redirect, because of
+        # X-Requested-With), so don't run the logged-out check here; the dashboard request
+        # that follows detects an expired session
+        response.raise_for_status()
+        _LOGGER.debug("Selected MyMeter service type %s", self.service_type)
+
     def _setup_chart_context(self, request_token: str, start_date: datetime, end_date: datetime) -> None:
         """Set up the Chart context with hourly granularity."""
         chart_setup_url = f"{self.base_url}/Dashboard/Chart"
@@ -222,7 +238,8 @@ class PSEGLIClient:
             _LOGGER.debug("Date calculation: days_back=%d, start_date=%s, end_date=%s", 
                         days_back, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
             
-            # Step 1: Get Dashboard page and extract token
+            # Step 1: Select the electric meter, then get Dashboard page and extract token
+            self._select_service_type()
             _, request_token = self._get_dashboard_page()
             
             # Step 2: Set up Chart context
