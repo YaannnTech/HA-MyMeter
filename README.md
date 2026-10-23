@@ -190,6 +190,10 @@ The addon provides these endpoints:
 
 ## 📝 **Changelog**
 
+### **v2.5.2**
+
+- Accept the session cookie MyMeter renews in its responses and save it to the config entry; the client previously kept sending the cookie as first entered, so sessions expired shortly after sign-in no matter how often they were used
+
 ### **v2.5.1**
 
 - Keep the MyMeter session alive with a lightweight dashboard request every 10 minutes; MyMeter ends idle sessions sooner than the 30-minute schedule

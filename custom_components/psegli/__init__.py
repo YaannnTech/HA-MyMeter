@@ -461,6 +461,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             },
         )
 
+    @callback
+    def async_store_renewed_cookie(current_client: PSEGLIClient) -> None:
+        """Save a cookie MyMeter renewed, so a restart starts from the current session."""
+        if current_client.cookie and current_client.cookie != entry.data.get(CONF_COOKIE):
+            hass.config_entries.async_update_entry(
+                entry,
+                data={**entry.data, CONF_COOKIE: current_client.cookie},
+            )
+            _LOGGER.debug("Stored renewed MyMeter cookie")
+
     async def async_keepalive(now: datetime) -> None:
         """Request the dashboard between scheduled checks so MyMeter keeps the session alive."""
         current_client = hass.data.get(DOMAIN, {}).get(entry.entry_id)
@@ -470,6 +480,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return
         try:
             await current_client.test_connection()
+            async_store_renewed_cookie(current_client)
             _LOGGER.debug("Keep-alive: MyMeter session still valid")
         except CannotConnect as err:
             _LOGGER.debug("Keep-alive: MyMeter not reachable, will retry: %s", err)
@@ -501,6 +512,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 current_client = hass.data[DOMAIN][entry.entry_id]
                 try:
                     await current_client.test_connection()
+                    async_store_renewed_cookie(current_client)
                     _LOGGER.debug("Cookie still valid, skipping cookie refresh (no MFA needed)")
                     # Still update statistics - energy data may have new readings
                     try:

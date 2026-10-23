@@ -24,11 +24,10 @@ class PSEGLIClient:
 
     def __init__(self, cookie: str, site: str = DEFAULT_SITE) -> None:
         """Initialize the client."""
-        self.cookie = cookie
         self.base_url = f"https://{SITES[site]['mymeter_host']}"
         self.session = requests.Session()
+        self._load_cookies(cookie)
         self.session.headers.update({
-            "Cookie": cookie,
             "Referer": f"{self.base_url}/Dashboard",
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -46,9 +45,30 @@ class PSEGLIClient:
 
     def update_cookie(self, new_cookie: str) -> None:
         """Update the cookie in this client instance."""
-        self.cookie = new_cookie
-        self.session.headers.update({"Cookie": new_cookie})
+        self._load_cookies(new_cookie)
         _LOGGER.debug("Updated client cookie to: %s", new_cookie[:50] + "..." if len(new_cookie) > 50 else new_cookie)
+
+    def _load_cookies(self, cookie: str) -> None:
+        """Load a "name=value; name=value" cookie string into the session's cookie jar.
+
+        MyMeter extends a session by sending a new MM_SID with Set-Cookie; the expiry is
+        part of the cookie value, so the old one still runs out. The jar picks up those
+        renewals, whereas a fixed Cookie header would keep sending the original.
+        """
+        self.cookie = cookie
+        self.session.cookies.clear()
+        host = urlparse(self.base_url).hostname
+        for part in cookie.split(";"):
+            name, separator, value = part.strip().partition("=")
+            if separator and name:
+                self.session.cookies.set(name, value, domain=host, path="/")
+
+    def _remember_renewed_cookies(self) -> None:
+        """Take over cookies MyMeter renewed; call only after a response showed a valid session."""
+        cookie = "; ".join(f"{c.name}={c.value}" for c in self.session.cookies)
+        if cookie and cookie != self.cookie:
+            _LOGGER.debug("MyMeter renewed the session cookie")
+            self.cookie = cookie
 
     def _test_connection_sync(self) -> bool:
         """Test the connection to PSEG (synchronous)."""
@@ -58,9 +78,12 @@ class PSEGLIClient:
 
             # Check if we're redirected to login page
             if self._is_logged_out(response):
+                # The logged-out response sets an anonymous MM_SID; drop it and keep the original
+                self._load_cookies(self.cookie)
                 _LOGGER.error("Cookie rejected - redirected to login page")
                 raise InvalidAuth("Cookie rejected - redirected to login page")
             
+            self._remember_renewed_cookies()
             _LOGGER.debug("PSEG connection test successful")
             return True
         except requests.exceptions.RequestException as err:
@@ -203,6 +226,8 @@ class PSEGLIClient:
             # Step 3: Get actual chart data
             chart_data = self._get_chart_data()
             
+            self._remember_renewed_cookies()
+
             # Create a minimal widget data structure since we're not fetching it
             widget_data = {"AjaxResults": []}
 
