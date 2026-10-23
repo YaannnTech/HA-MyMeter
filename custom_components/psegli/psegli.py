@@ -71,10 +71,10 @@ class PSEGLIClient:
             _LOGGER.debug("MyMeter renewed the session cookie")
             self.cookie = cookie
 
-    def _test_connection_sync(self) -> bool:
+    def _test_connection_sync(self, timeout: float = REQUEST_TIMEOUT) -> bool:
         """Test the connection to PSEG (synchronous)."""
         try:
-            response = self.session.get(f"{self.base_url}/Dashboard", timeout=REQUEST_TIMEOUT)
+            response = self.session.get(f"{self.base_url}/Dashboard", timeout=timeout)
             response.raise_for_status()
             # Names only; the values are credentials
             _LOGGER.debug(
@@ -117,15 +117,15 @@ class PSEGLIClient:
             return any(result.get("Action") == "Redirect" for result in results)
         return 'name="LoginEmail"' in response.text
 
-    async def test_connection(self) -> bool:
+    async def test_connection(self, timeout: float = REQUEST_TIMEOUT) -> bool:
         """Test the connection to PSEG (async wrapper)."""
         try:
             loop = asyncio.get_running_loop()
             with ThreadPoolExecutor() as executor:
-                return await loop.run_in_executor(executor, self._test_connection_sync)
+                return await loop.run_in_executor(executor, self._test_connection_sync, timeout)
         except RuntimeError:
             # Fallback for when there's no running loop
-            return self._test_connection_sync()
+            return self._test_connection_sync(timeout)
 
     def _get_dashboard_page(self) -> tuple[str, str]:
         """Get the Dashboard page and extract RequestVerificationToken."""

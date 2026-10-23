@@ -190,6 +190,10 @@ The addon provides these endpoints:
 
 ## 📝 **Changelog**
 
+### **v2.6.2**
+
+- Send a keep-alive when Home Assistant shuts down, so the MyMeter session survives a restart as long as the restart itself is shorter than MyMeter's idle timeout
+
 ### **v2.6.1**
 
 - Mask both cookie fields (only the token field was masked) and show "Email" / "Text message (SMS)" for the verification code choice

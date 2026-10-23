@@ -18,7 +18,7 @@ try:
 except ImportError:  # older Home Assistant versions
     StatisticMeanType = None
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.event import async_track_time_interval
@@ -511,6 +511,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await async_notify_session_expired(current_client)
 
     entry.async_on_unload(async_track_time_interval(hass, async_keepalive, KEEPALIVE_INTERVAL))
+
+    async def async_keepalive_on_stop(event: Any) -> None:
+        """Touch the session right before shutdown, so a restart only has to beat the idle timeout."""
+        current_client = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+        if not current_client or not current_client.cookie:
+            return
+        if session_state["expired_cookie"] == current_client.cookie:
+            return
+        try:
+            # Short timeout so a slow MyMeter can't hold up the shutdown
+            await current_client.test_connection(timeout=10)
+            _LOGGER.debug("Keep-alive before shutdown: MyMeter session still valid")
+        except InvalidAuth as err:
+            _LOGGER.debug("Keep-alive before shutdown failed: %s", err)
+
+    entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_keepalive_on_stop))
 
     # Set up scheduled cookie refresh at XX:00 and XX:30
     async def async_scheduled_cookie_refresh() -> None:
