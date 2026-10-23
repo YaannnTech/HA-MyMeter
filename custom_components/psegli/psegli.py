@@ -75,6 +75,11 @@ class PSEGLIClient:
         try:
             response = self.session.get(f"{self.base_url}/Dashboard", timeout=REQUEST_TIMEOUT)
             response.raise_for_status()
+            # Names only; the values are credentials
+            _LOGGER.debug(
+                "MyMeter /Dashboard set cookies: %s",
+                [cookie.name for r in (*response.history, response) for cookie in r.cookies] or "none",
+            )
 
             # Check if we're redirected to login page
             if self._is_logged_out(response):

@@ -190,6 +190,11 @@ The addon provides these endpoints:
 
 ## 📝 **Changelog**
 
+### **v2.5.3**
+
+- Send the keep-alive every 4 minutes instead of 10: MyMeter sessions appear to last about 10 minutes and are only renewed by a request in the second half of that time
+- Debug log: names of the cookies MyMeter sets on each session check (never their values)
+
 ### **v2.5.2**
 
 - Accept the session cookie MyMeter renews in its responses and save it to the config entry; the client previously kept sending the cookie as first entered, so sessions expired shortly after sign-in no matter how often they were used

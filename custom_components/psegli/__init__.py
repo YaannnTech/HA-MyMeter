@@ -433,8 +433,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_enter_mfa_code
     )
     
-    # MyMeter ends idle sessions in under ~19 minutes, longer than the 30-minute schedule below
-    KEEPALIVE_INTERVAL = timedelta(minutes=10)
+    # MyMeter sessions appear to last about 10 minutes and to be renewed only by a request in the
+    # second half of that time, so ping well within half of it
+    KEEPALIVE_INTERVAL = timedelta(minutes=4)
     # Cookie last found expired, so we notify once per cookie and stop pinging it
     session_state = {"expired_cookie": None}
 
