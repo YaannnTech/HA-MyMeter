@@ -190,6 +190,13 @@ The addon provides these endpoints:
 
 ## 📝 **Changelog**
 
+### **v2.5.1**
+
+- Keep the MyMeter session alive with a lightweight dashboard request every 10 minutes; MyMeter ends idle sessions sooner than the 30-minute schedule
+- Show a notification when the session expires and no addon is available to log in again, with steps to paste a new cookie
+- Add a 60-second timeout to MyMeter requests (a stalled request could block checks for over 15 minutes); a network error no longer counts as an expired cookie
+- Run the scheduled refresh as a background task so it does not delay Home Assistant shutdown
+
 ### **v2.5.0**
 
 - Add PSE&G New Jersey support: choose the utility during integration setup (existing setups stay on PSEG Long Island)

@@ -17,9 +17,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_COOKIE, CONF_MFA_METHOD, CONF_SITE, DEFAULT_SITE
+from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_COOKIE, CONF_MFA_METHOD, CONF_SITE, DEFAULT_SITE, SITES
+from .exceptions import CannotConnect
 from .psegli import InvalidAuth, PSEGLIClient
 from .auto_login import get_fresh_cookies, complete_mfa_login, check_addon_health, MFA_REQUIRED
 
@@ -431,6 +433,53 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_enter_mfa_code
     )
     
+    # MyMeter ends idle sessions in under ~19 minutes, longer than the 30-minute schedule below
+    KEEPALIVE_INTERVAL = timedelta(minutes=10)
+    # Cookie last found expired, so we notify once per cookie and stop pinging it
+    session_state = {"expired_cookie": None}
+
+    async def async_notify_session_expired(current_client: PSEGLIClient) -> None:
+        """Show a sidebar notification that the MyMeter session expired (once per cookie)."""
+        if session_state["expired_cookie"] == current_client.cookie:
+            return
+        session_state["expired_cookie"] = current_client.cookie
+        site = SITES[entry.data.get(CONF_SITE, DEFAULT_SITE)]
+        _LOGGER.warning("MyMeter session expired and no add-on refreshed it - a new cookie is needed")
+        await hass.services.async_call(
+            "persistent_notification",
+            "create",
+            {
+                "title": "PSEG Integration: Session Expired",
+                "message": (
+                    f"The {site['name']} MyMeter session has expired, so usage data is no longer updated.\n\n"
+                    f"Sign in at https://{site['mymeter_host']}/ and copy the `MM_SID` and "
+                    "`__RequestVerificationToken` cookies. Then go to Settings > Devices & services > "
+                    f"{entry.title} > Configure and paste them as "
+                    "`MM_SID=...; __RequestVerificationToken=...`."
+                ),
+                "notification_id": "psegli_auth_failed",
+            },
+        )
+
+    async def async_keepalive(now: datetime) -> None:
+        """Request the dashboard between scheduled checks so MyMeter keeps the session alive."""
+        current_client = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+        if not current_client or not current_client.cookie:
+            return
+        if session_state["expired_cookie"] == current_client.cookie:
+            return
+        try:
+            await current_client.test_connection()
+            _LOGGER.debug("Keep-alive: MyMeter session still valid")
+        except CannotConnect as err:
+            _LOGGER.debug("Keep-alive: MyMeter not reachable, will retry: %s", err)
+        except InvalidAuth:
+            # With an add-on, the next scheduled refresh logs in again; without one, tell the user now
+            if not await check_addon_health():
+                await async_notify_session_expired(current_client)
+
+    entry.async_on_unload(async_track_time_interval(hass, async_keepalive, KEEPALIVE_INTERVAL))
+
     # Set up scheduled cookie refresh at XX:00 and XX:30
     async def async_scheduled_cookie_refresh() -> None:
         """Automatically refresh cookies at scheduled times (XX:00 and XX:30).
@@ -460,12 +509,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     except Exception as stats_err:
                         _LOGGER.warning("Statistics update failed: %s", stats_err)
                     return
+                except CannotConnect as err:
+                    _LOGGER.warning("MyMeter not reachable, will retry at the next scheduled time: %s", err)
+                    return
                 except InvalidAuth:
                     _LOGGER.debug("Cookie expired, proceeding with refresh")
             
             # Check if addon is healthy before attempting refresh
             if not await check_addon_health():
                 _LOGGER.warning("Addon not available or unhealthy, skipping scheduled cookie refresh")
+                current_client = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+                if current_client and current_client.cookie:
+                    await async_notify_session_expired(current_client)
                 return
             
             # Attempt to get fresh cookies
@@ -527,6 +582,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 
             else:
                 _LOGGER.warning("Addon failed to provide fresh cookies during scheduled refresh")
+                await async_notify_session_expired(hass.data[DOMAIN][entry.entry_id])
                 
         except Exception as e:
             _LOGGER.error("Failed to refresh cookie during scheduled refresh: %s", e)
@@ -555,7 +611,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Use a global flag that persists across reloads to prevent multiple tasks
     if 'global_scheduled_task_running' not in hass.data:
         hass.data['global_scheduled_task_running'] = True
-        task = hass.async_create_task(refresh_cookies_scheduled())
+        task = hass.async_create_background_task(refresh_cookies_scheduled(), "psegli_scheduled_cookie_refresh")
         hass.data['global_scheduled_task'] = task
         _LOGGER.debug("Started global scheduled cookie refresh task")
     else:

@@ -11,9 +11,12 @@ import requests
 from bs4 import BeautifulSoup
 
 from .const import ATTR_COMPARISON, ATTR_DESCRIPTION, ATTR_LAST_UPDATE, DEFAULT_SITE, SITES
-from .exceptions import InvalidAuth
+from .exceptions import CannotConnect, InvalidAuth
 
 _LOGGER = logging.getLogger(__name__)
+
+# Seconds to wait for MyMeter; without a limit a stalled request blocked checks for 17 minutes
+REQUEST_TIMEOUT = 60
 
 
 class PSEGLIClient:
@@ -50,7 +53,7 @@ class PSEGLIClient:
     def _test_connection_sync(self) -> bool:
         """Test the connection to PSEG (synchronous)."""
         try:
-            response = self.session.get(f"{self.base_url}/Dashboard")
+            response = self.session.get(f"{self.base_url}/Dashboard", timeout=REQUEST_TIMEOUT)
             response.raise_for_status()
 
             # Check if we're redirected to login page
@@ -62,7 +65,7 @@ class PSEGLIClient:
             return True
         except requests.exceptions.RequestException as err:
             _LOGGER.error("Failed to connect to PSEG: %s", err)
-            raise InvalidAuth("Invalid authentication") from err
+            raise CannotConnect(f"Failed to connect to PSEG: {err}") from err
 
     @staticmethod
     def _is_logged_out(response: requests.Response) -> bool:
@@ -97,7 +100,7 @@ class PSEGLIClient:
 
     def _get_dashboard_page(self) -> tuple[str, str]:
         """Get the Dashboard page and extract RequestVerificationToken."""
-        dashboard_response = self.session.get(f"{self.base_url}/Dashboard")
+        dashboard_response = self.session.get(f"{self.base_url}/Dashboard", timeout=REQUEST_TIMEOUT)
         if dashboard_response.status_code != 200:
             raise InvalidAuth("Failed to get Dashboard page")
         
@@ -137,7 +140,7 @@ class PSEGLIClient:
                     start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
         _LOGGER.debug("Chart setup data: %s", chart_setup_data)
         
-        chart_setup_response = self.session.post(chart_setup_url, data=chart_setup_data)
+        chart_setup_response = self.session.post(chart_setup_url, data=chart_setup_data, timeout=REQUEST_TIMEOUT)
         chart_setup_response.raise_for_status()
         
         # Check for redirect response in Chart/ request - if it redirects, the request failed
@@ -161,7 +164,7 @@ class PSEGLIClient:
         }
         
         _LOGGER.debug("Making ChartData/ request to get hourly data")
-        chart_response = self.session.get(chart_data_url, params=chart_data_params)
+        chart_response = self.session.get(chart_data_url, params=chart_data_params, timeout=REQUEST_TIMEOUT)
         chart_response.raise_for_status()
         
         # Debug: Log the response content
