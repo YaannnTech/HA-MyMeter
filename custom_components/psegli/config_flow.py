@@ -8,6 +8,14 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 from homeassistant.util.yaml import load_yaml
 
 from .const import (
@@ -21,6 +29,12 @@ from .auto_login import get_fresh_cookies, complete_mfa_login, MFA_REQUIRED
 _LOGGER = logging.getLogger(__name__)
 
 COOKIE_NAMES = {CONF_MM_SID: "MM_SID", CONF_REQUEST_TOKEN: "__RequestVerificationToken"}
+
+# Both cookies are credentials, so mask both (Home Assistant masks only the field named "token")
+COOKIE_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
+MFA_METHOD_SELECTOR = SelectSelector(
+    SelectSelectorConfig(options=["email", "sms"], mode=SelectSelectorMode.LIST, translation_key="mfa_method")
+)
 
 
 class IncompleteCookie(Exception):
@@ -205,9 +219,9 @@ class PSEGLIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional(CONF_SITE, default=DEFAULT_SITE): vol.In(
                 {key: site["name"] for key, site in SITES.items()}
             ),
-            vol.Optional(CONF_MM_SID): str,
-            vol.Optional(CONF_REQUEST_TOKEN): str,
-            vol.Optional(CONF_MFA_METHOD, default="sms"): vol.In(["email", "sms"]),
+            vol.Optional(CONF_MM_SID): COOKIE_SELECTOR,
+            vol.Optional(CONF_REQUEST_TOKEN): COOKIE_SELECTOR,
+            vol.Optional(CONF_MFA_METHOD, default="sms"): MFA_METHOD_SELECTOR,
         })
 
 
@@ -371,11 +385,11 @@ class PSEGLIOptionsFlow(config_entries.OptionsFlow):
         """Return the schema for the options flow."""
         return vol.Schema({
             # Leave both empty to attempt automatic refresh via addon
-            vol.Optional(CONF_MM_SID): str,
-            vol.Optional(CONF_REQUEST_TOKEN): str,
+            vol.Optional(CONF_MM_SID): COOKIE_SELECTOR,
+            vol.Optional(CONF_REQUEST_TOKEN): COOKIE_SELECTOR,
             vol.Optional(
                 CONF_MFA_METHOD,
                 default=self.config_entry.data.get(CONF_MFA_METHOD, "sms"),
-            ): vol.In(["email", "sms"]),
+            ): MFA_METHOD_SELECTOR,
         })
 

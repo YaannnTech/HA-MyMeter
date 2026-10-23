@@ -190,6 +190,10 @@ The addon provides these endpoints:
 
 ## 📝 **Changelog**
 
+### **v2.6.1**
+
+- Mask both cookie fields (only the token field was masked) and show "Email" / "Text message (SMS)" for the verification code choice
+
 ### **v2.6.0**
 
 - Enter the session cookies in two fields, MM_SID and __RequestVerificationToken, instead of one combined cookie string. Each field accepts the bare value, `name=value`, or the full cookie string

@@ -64,5 +64,13 @@
       "addon_failed": "Addon failed to get cookies.",
       "credentials_not_found": "No username or password configured. Please reconfigure the integration."
     }
+  },
+  "selector": {
+    "mfa_method": {
+      "options": {
+        "email": "Email",
+        "sms": "Text message (SMS)"
+      }
+    }
   }
 }
